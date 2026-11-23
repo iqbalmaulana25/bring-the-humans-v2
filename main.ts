@@ -14,11 +14,32 @@
 // stand in for /bot and /output:
 //   mkdir -p out && MAKEFUN_BOT_DIR=. MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const BOT_DIR = process.env.MAKEFUN_BOT_DIR ?? '/bot';
 const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
+// Fail loudly on a malformed VIDEO.json instead of handing the gate a file
+// it can only refuse: the record must be a JSON object whose "url" is the
+// video's full TikTok address.
+const source = join(BOT_DIR, 'VIDEO.json');
+let record: unknown;
+try {
+  record = JSON.parse(readFileSync(source, 'utf8'));
+} catch (err) {
+  console.error(`VIDEO.json in ${BOT_DIR} is not readable JSON: ${(err as Error).message}`);
+  process.exit(1);
+}
+if (typeof record !== 'object' || record === null || typeof (record as { url?: unknown }).url !== 'string') {
+  console.error('VIDEO.json must be an object with a string "url" naming the TikTok video');
+  process.exit(1);
+}
+
 mkdirSync(OUTPUT_DIR, { recursive: true });
-copyFileSync(join(BOT_DIR, 'VIDEO.json'), join(OUTPUT_DIR, 'VIDEO.json'));
+try {
+  copyFileSync(source, join(OUTPUT_DIR, 'VIDEO.json'));
+} catch (err) {
+  console.error(`VIDEO.json could not be copied from ${BOT_DIR}: ${(err as Error).message}`);
+  process.exit(1);
+}
