@@ -37,9 +37,26 @@ if (typeof record !== 'object' || record === null || typeof (record as { url?: u
 }
 
 mkdirSync(OUTPUT_DIR, { recursive: true });
+const destination = join(OUTPUT_DIR, 'VIDEO.json');
 try {
-  copyFileSync(source, join(OUTPUT_DIR, 'VIDEO.json'));
+  copyFileSync(source, destination);
 } catch (err) {
   console.error(`VIDEO.json could not be copied from ${BOT_DIR}: ${(err as Error).message}`);
+  process.exit(1);
+}
+
+// Read the copy back and prove it names a real video before handing it in:
+// the gate only accepts the full address of a TikTok video post, so a short
+// link or a profile page must fail here rather than at the gate.
+let copied: unknown;
+try {
+  copied = JSON.parse(readFileSync(destination, 'utf8'));
+} catch (err) {
+  console.error(`VIDEO.json copied to ${OUTPUT_DIR} is not readable JSON: ${(err as Error).message}`);
+  process.exit(1);
+}
+const copiedUrl = (copied as { url?: unknown })?.url;
+if (typeof copiedUrl !== 'string' || !/^https:\/\/(www\.)?tiktok\.com\/@[^/]+\/video\/\d+\/?$/.test(copiedUrl)) {
+  console.error('VIDEO.json must name a full TikTok video address (https://www.tiktok.com/@<handle>/video/<id>)');
   process.exit(1);
 }
